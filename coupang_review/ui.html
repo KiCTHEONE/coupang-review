@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>리뷰 답글 관리</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #1d2330; --muted: #6b7280; --line: #e4e7ec;
+    --brand: #2f6bff; --brand-ink: #ffffff; --ok: #12805c; --warn: #b45309; --bad: #c2283a;
+    --ok-bg: #e7f6ef; --warn-bg: #fdf3e2; --bad-bg: #fdecee; --chip: #eef2ff;
+    --radius: 14px; --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1218; --card: #171b23; --text: #e8ebf1; --muted: #9aa3b2; --line: #2a303b;
+      --brand: #5b8cff; --ok: #4ccf99; --warn: #f5b454; --bad: #ff6b7d;
+      --ok-bg: #133126; --warn-bg: #3a2a12; --bad-bg: #3a1820; --chip: #1f2740; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; }
+  header { position: sticky; top: 0; z-index: 5; background: var(--card); border-bottom: 1px solid var(--line); }
+  .bar { max-width: 1040px; margin: 0 auto; padding: 14px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0; flex: 1; min-width: 180px; }
+  main { max-width: 1040px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; }
+  .card h2 { font-size: 15px; margin: 0 0 12px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--text);
+    padding: 9px 14px; border-radius: 10px; cursor: pointer; font-weight: 600; }
+  button.primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+  button.danger { color: var(--bad); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .status { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--chip); color: var(--muted); white-space: nowrap; }
+  .status.busy { color: var(--brand); }
+  .steps { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .step { display: grid; gap: 8px; align-content: start; }
+  .step p { margin: 0; color: var(--muted); font-size: 13px; }
+  .num { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+    background: var(--brand); color: var(--brand-ink); font-size: 12px; margin-right: 6px; }
+  label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+  input, textarea, select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 10px; width: 100%; }
+  textarea { resize: vertical; min-height: 70px; }
+  .grid2 { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  details summary { cursor: pointer; font-weight: 600; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tabs button.on { background: var(--chip); border-color: var(--brand); color: var(--brand); }
+  .list { display: grid; gap: 10px; }
+  .rv { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 8px; }
+  .rv .top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .rv .who { font-weight: 700; }
+  .stars { color: #f5a524; letter-spacing: 1px; }
+  .menu { color: var(--muted); font-size: 13px; }
+  .text { margin: 0; white-space: pre-wrap; }
+  .badge { margin-left: auto; font-size: 12px; padding: 2px 8px; border-radius: 999px; font-weight: 700; }
+  .b-preview { background: var(--chip); color: var(--brand); }
+  .b-posted { background: var(--ok-bg); color: var(--ok); }
+  .b-low_rating, .b-ai_failed { background: var(--warn-bg); color: var(--warn); }
+  .b-post_failed { background: var(--bad-bg); color: var(--bad); }
+  .muted { color: var(--muted); font-size: 13px; }
+  .empty { text-align: center; color: var(--muted); padding: 28px 8px; }
+  pre.log { margin: 0; max-height: 260px; overflow: auto; font: 12px/1.5 ui-monospace, Consolas, monospace;
+    white-space: pre-wrap; background: var(--bg); border-radius: 10px; padding: 10px; }
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .toolbar .spacer { flex: 1; }
+  .check { display: inline-flex; gap: 6px; align-items: center; color: var(--text); font-size: 14px; }
+  .check input, .rv .pick { width: 18px; height: 18px; margin: 0; flex: none; }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1>🍗 쿠팡이츠 리뷰 답글 관리</h1>
+    <span id="status" class="status">대기 중</span>
+    <button id="stopBtn" class="danger" hidden>중지</button>
+  </div>
+</header>
+
+<main>
+  <section class="card">
+    <div class="steps">
+      <div class="step">
+        <strong><span class="num">1</span>로그인</strong>
+        <p id="loginHint">처음 한 번, 또는 로그인이 풀렸을 때만 하면 됩니다.</p>
+        <div class="row">
+          <button id="loginBtn">크롬에서 로그인</button>
+          <button id="loginDoneBtn" class="primary" hidden>로그인 완료</button>
+        </div>
+      </div>
+      <div class="step">
+        <strong><span class="num">2</span>미리보기</strong>
+        <p>미답변 리뷰와 AI 답글을 불러옵니다. 아직 등록하지 않아요.</p>
+        <div class="row"><button id="previewBtn" class="primary">답글 미리보기</button></div>
+      </div>
+      <div class="step">
+        <strong><span class="num">3</span>등록</strong>
+        <p>아래 목록에서 확인·수정한 답글만 올리거나, 한 번에 전부 자동으로 올립니다.</p>
+        <div class="row">
+          <button id="postSelBtn" class="primary">선택한 답글 등록</button>
+          <button id="postAllBtn">전체 자동 등록</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="tabs">
+      <button data-tab="items" class="on">이번 답글</button>
+      <button data-tab="history">등록 기록</button>
+    </div>
+    <div id="tab-items">
+      <div class="toolbar">
+        <label class="check"><input type="checkbox" id="checkAll" checked> 전체 선택</label>
+        <span class="spacer"></span>
+        <span id="count" class="muted"></span>
+      </div>
+      <div id="items" class="list"><div class="empty">'답글 미리보기'를 누르면 여기에 리뷰가 나타납니다.</div></div>
+    </div>
+    <div id="tab-history" hidden>
+      <div id="history" class="list"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <details id="settingsBox">
+      <summary>⚙️ 설정 (가게 이름 · 말투 · API 키)</summary>
+      <div class="grid2" style="margin-top:12px">
+        <label>가게 이름 <input id="s-name"></label>
+        <label>답글 끝 서명 <input id="s-signature" placeholder="- OO치킨 사장 드림"></label>
+        <label>자동 등록할 최소 별점
+          <select id="s-min_rating">
+            <option value="1">1점 이상 (전부)</option><option value="2">2점 이상</option>
+            <option value="3">3점 이상</option><option value="4">4점 이상</option><option value="5">5점만</option>
+          </select>
+        </label>
+        <label>Gemini API 키 <input id="s-api_key" type="password" autocomplete="off"></label>
+      </div>
+      <label style="margin-top:10px">말투 <textarea id="s-tone" rows="2"></textarea></label>
+      <label style="margin-top:10px">추가 지침 (선택) <textarea id="s-extra_instructions" rows="2" placeholder="예: 재주문 손님에게는 다시 찾아주셔서 감사하다고 해 주세요."></textarea></label>
+      <div class="row" style="margin-top:12px">
+        <button id="saveBtn" class="primary">설정 저장</button>
+        <span id="saveMsg" class="muted"></span>
+      </div>
+    </details>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>📜 진행 기록</summary>
+      <pre id="log" class="log" style="margin-top:10px"></pre>
+    </details>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const STATUS = { preview: "답글 후보", low_rating: "낮은 별점 · 확인 필요", posted: "등록 완료",
+                 post_failed: "등록 실패", ai_failed: "답글 생성 실패" };
+const edits = {}, checks = {};
+let items = [], busy = false;
+
+async function api(path, body) {
+  const opt = body === undefined ? {} : {
+    method: "POST", headers: { "Content-Type": "application/json", "X-Review-App": "1" }, body: JSON.stringify(body) };
+  const r = await fetch(path, opt);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok && data.error) alert(data.error);
+  return data;
+}
+
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const stars = n => n ? "★".repeat(n) + "☆".repeat(5 - n) : "별점 ?";
+const selectable = it => it.status === "preview" || it.status === "low_rating" || it.status === "post_failed";
+
+function renderItems() {
+  const box = $("#items");
+  if (!items.length) {
+    box.innerHTML = `<div class="empty">${busy ? "리뷰를 불러오는 중…" : "'답글 미리보기'를 누르면 여기에 리뷰가 나타납니다."}</div>`;
+    $("#count").textContent = "";
+    return;
+  }
+  if (box.querySelector(".empty")) box.innerHTML = "";
+  for (const it of items) {
+    if (checks[it.key] === undefined) checks[it.key] = it.status === "preview";
+    let el = box.querySelector(`[data-key="${CSS.escape(it.key)}"]`);
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "rv";
+      el.dataset.key = it.key;
+      el.innerHTML = `
+        <div class="top">
+          <input type="checkbox" class="pick" aria-label="선택">
+          <span class="who">${esc(it.author || "고객")}</span>
+          <span class="stars">${stars(it.rating)}</span>
+          <span class="menu">${esc(it.menu)}</span>
+          <span class="badge"></span>
+        </div>
+        <p class="text">${esc(it.text || "(내용 없이 별점만)")}</p>
+        <textarea class="reply" rows="3" placeholder="답글"></textarea>`;
+      el.querySelector(".pick").onchange = e => { checks[it.key] = e.target.checked; updateCount(); };
+      el.querySelector(".reply").oninput = e => { edits[it.key] = e.target.value; };
+      box.appendChild(el);
+    }
+    const ta = el.querySelector(".reply"), pick = el.querySelector(".pick"), badge = el.querySelector(".badge");
+    if (document.activeElement !== ta) ta.value = edits[it.key] ?? it.reply ?? "";
+    ta.readOnly = it.status === "posted";
+    pick.disabled = !selectable(it);
+    if (!selectable(it)) checks[it.key] = false;
+    pick.checked = !!checks[it.key];
+    badge.className = "badge b-" + it.status;
+    badge.textContent = STATUS[it.status] || it.status;
+  }
+  updateCount();
+}
+
+function updateCount() {
+  const n = items.filter(it => checks[it.key] && selectable(it)).length;
+  $("#count").textContent = `리뷰 ${items.length}개 · 선택 ${n}개`;
+}
+
+async function refresh() {
+  const st = await api("/api/state");
+  busy = !!st.job;
+  $("#status").textContent = st.job ? (st.stopping ? "멈추는 중…" : st.job + " 중…") : "대기 중";
+  $("#status").classList.toggle("busy", busy);
+  $("#stopBtn").hidden = !busy || st.job === "로그인 창 열기" || st.job === "로그인 저장";
+  for (const b of ["#previewBtn", "#postSelBtn", "#postAllBtn", "#loginBtn"]) $(b).disabled = busy;
+  $("#loginDoneBtn").hidden = !st.login_waiting;
+  $("#loginDoneBtn").disabled = busy;
+  $("#loginHint").textContent = st.login_waiting ? "열린 크롬 창에서 로그인을 마치고 '로그인 완료'를 누르세요."
+    : st.has_session ? "✅ 로그인 정보가 저장되어 있어요. 풀렸을 때만 다시 하세요." : "처음 한 번 로그인이 필요합니다.";
+  const log = $("#log"), atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 20;
+  log.textContent = st.logs.join("\n");
+  if (atBottom) log.scrollTop = log.scrollHeight;
+  items = st.items;
+  renderItems();
+}
+
+async function loadHistory() {
+  const rows = await api("/api/history");
+  $("#history").innerHTML = rows.length ? rows.map(r => `
+    <div class="rv">
+      <div class="top"><span class="who">${esc(r.author || "고객")}</span><span class="stars">${stars(r.rating)}</span>
+        <span class="badge b-posted">${esc((r.at || "").replace("T", " "))}</span></div>
+      ${r.text ? `<p class="text">${esc(r.text)}</p>` : ""}
+      <p class="text muted">↳ ${esc(r.reply)}</p>
+    </div>`).join("") : `<div class="empty">아직 등록한 답글이 없어요.</div>`;
+}
+
+async function loadSettings() {
+  const s = await api("/api/settings");
+  for (const k of ["name", "signature", "tone", "extra_instructions"]) $("#s-" + k).value = s[k] || "";
+  $("#s-min_rating").value = String(s.min_rating);
+  $("#s-api_key").placeholder = s.api_key_set ? "저장됨 (바꿀 때만 입력)" : "AIza… 붙여넣기";
+  if (!s.api_key_set) $("#settingsBox").open = true;
+}
+
+$("#saveBtn").onclick = async () => {
+  const body = { min_rating: +$("#s-min_rating").value, api_key: $("#s-api_key").value };
+  for (const k of ["name", "signature", "tone", "extra_instructions"]) body[k] = $("#s-" + k).value;
+  const r = await api("/api/settings", body);
+  if (r.ok) { $("#s-api_key").value = ""; $("#saveMsg").textContent = "저장했어요 ✓"; loadSettings(); setTimeout(() => $("#saveMsg").textContent = "", 2500); }
+};
+$("#loginBtn").onclick = () => api("/api/login/start", {}).then(refresh);
+$("#loginDoneBtn").onclick = () => api("/api/login/finish", {}).then(refresh);
+$("#previewBtn").onclick = () => {
+  for (const k in edits) delete edits[k];
+  for (const k in checks) delete checks[k];
+  api("/api/run", { mode: "preview" }).then(refresh);
+};
+$("#postSelBtn").onclick = () => {
+  const selected = {};
+  for (const it of items) if (checks[it.key] && selectable(it)) {
+    const text = (edits[it.key] ?? it.reply ?? "").trim();
+    if (text) selected[it.key] = text;
+  }
+  const n = Object.keys(selected).length;
+  if (!n) return alert("등록할 답글을 선택해 주세요. (먼저 '답글 미리보기')");
+  if (confirm(`선택한 답글 ${n}개를 쿠팡이츠에 등록할까요?`)) api("/api/run", { mode: "post_selected", selected }).then(refresh);
+};
+$("#postAllBtn").onclick = () => {
+  if (confirm("미답변 리뷰 전체에 AI 답글을 바로 등록할까요?\n(설정의 최소 별점보다 낮은 리뷰는 건너뜁니다)"))
+    api("/api/run", { mode: "post_all" }).then(refresh);
+};
+$("#stopBtn").onclick = () => api("/api/stop", {}).then(refresh);
+$("#checkAll").onchange = e => { for (const it of items) if (selectable(it)) checks[it.key] = e.target.checked; renderItems(); };
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x === b));
+  $("#tab-items").hidden = b.dataset.tab !== "items";
+  $("#tab-history").hidden = b.dataset.tab !== "history";
+  if (b.dataset.tab === "history") loadHistory();
+});
+
+loadSettings();
+refresh();
+setInterval(refresh, 1500);
+</script>
+</body>
+</html>

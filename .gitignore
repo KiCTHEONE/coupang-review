@@ -8,3 +8,4 @@ debug/
 .pytest_cache/
 .chrome-profile/
 session.json
+app.log
