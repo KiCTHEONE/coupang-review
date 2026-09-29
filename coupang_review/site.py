@@ -17,6 +17,7 @@ from typing import Callable
 
 from playwright.sync_api import BrowserContext, Locator, Page, TimeoutError as PWTimeout
 
+from .config import period_days, period_texts
 from .models import QuotaExhausted, Review
 
 log = logging.getLogger(__name__)
@@ -216,8 +217,8 @@ class CoupangEatsStore:
         return None
 
     def apply_period(self) -> None:
-        """리뷰 조회 기간을 설정된 가장 긴 기간으로 바꾼다 (기본 1년, 없으면 6개월→3개월…)."""
-        periods = list(self.cfg.get("period_texts") or [])
+        """리뷰 조회 기간을 설정한 기간(기본 1주일)으로 바꾼다. 그 버튼이 없으면 더 긴 기간 중 가장 짧은 것."""
+        periods = period_texts(self.cfg)
         if not periods:
             return
         chosen = self._click_text(periods) or self._select_option(periods)
@@ -304,7 +305,7 @@ class CoupangEatsStore:
                 dated.append((inputs.nth(i), m.group(2)))
         if len(dated) < 2:
             return None
-        start = date.today() - timedelta(days=int(self.cfg.get("period_days", 365)))
+        start = date.today() - timedelta(days=period_days(self.cfg))
         (box, sep) = dated[0]
         try:
             box.fill(start.strftime(f"%Y{sep}%m{sep}%d"), timeout=2000)

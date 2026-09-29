@@ -71,6 +71,7 @@ def test_card_key_ignores_relative_date():
 
 def test_period_and_load_more(open_store):
     store = open_store("fake_reviews_period.html", "auto")
+    store.cfg["period"] = "1년"
     assert len(store.review_items()) == 1  # '오늘'만 보이는 상태
     store.apply_period()
     assert store.page.locator("#period").inner_text() == "1년"
@@ -80,7 +81,8 @@ def test_period_and_load_more(open_store):
     assert not store.load_more() or len(store.review_items()) == 4
 
 
-@pytest.mark.parametrize("variant, expected", [("select", "최근 6개월"), ("range", "6개월")])
+# 기본 1주일. 달력(range)에는 1주일 버튼이 없어 그보다 긴 것 중 가장 짧은 1개월을 고른다.
+@pytest.mark.parametrize("variant, expected", [("select", "최근 1주일"), ("range", "1개월")])
 def test_period_variants(open_store, variant, expected):
     store = open_store("fake_period_variants.html", "auto")
     store.page.goto((FIXTURES / "fake_period_variants.html").as_uri() + "#" + variant)
@@ -96,3 +98,9 @@ def test_period_not_found_logs_controls(open_store, caplog):
     with caplog.at_level("WARNING"):
         store.apply_period()
     assert "필터" in caplog.text and "정렬: 최신순" in caplog.text
+
+
+def test_default_period_is_one_week(open_store):
+    store = open_store("fake_reviews_period.html", "auto")
+    store.apply_period()
+    assert store.page.locator("#period").inner_text() == "1주일"

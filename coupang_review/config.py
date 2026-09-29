@@ -47,11 +47,12 @@ DEFAULTS: dict[str, Any] = {
         "mode": "auto",
         "reply_button_text": r"^(사장님\s*)?(댓글|답글)\s*(등록|작성|달기|쓰기)",
         "submit_button_text": r"^(등록|등록하기|작성|작성하기|완료|저장|확인)$",
-        # 조회 기간: 화면에서 이 글자의 버튼을 앞에서부터 찾아 누름 (가장 긴 기간 우선)
-        "period_texts": ["1년", "12개월", "365일", "6개월", "180일", "3개월", "90일", "1개월", "30일"],
+        # 조회 기간: 1주일 / 1개월 / 3개월 / 6개월 / 1년
+        # 화면에 그 기간 버튼이 없으면 그보다 긴 기간 중 가장 짧은 것을 고른다 (리뷰를 놓치지 않도록)
+        "period": "1주일",
+        "period_texts": [],  # 직접 지정하면 period 대신 이 글자들을 앞에서부터 찾음
         "period_opener_text": r"^\s*(오늘|어제|최근\s*\d+\s*(일|주|개월|년)|\d+\s*(일|주|주일|개월|년)|기간\s*선택|조회\s*기간|기간|전체\s*기간)\s*$",
         "period_apply_texts": ["조회", "검색", "적용"],
-        "period_days": 365,  # 날짜 입력칸 방식일 때 며칠 전부터
         "load_more_texts": ["더보기", "리뷰 더보기", "더 보기"],
         "login_url": "https://store.coupangeats.com/merchant/login",
         "reviews_url": "https://store.coupangeats.com/merchant/management/reviews",
@@ -78,6 +79,29 @@ DEFAULTS: dict[str, Any] = {
         },
     },
 }
+
+
+# 조회 기간별로 화면에 나올 수 있는 글자와 날짜 수
+PERIODS: dict[str, tuple[list[str], int]] = {
+    "1주일": (["1주일", "1주", "일주일", "7일"], 7),
+    "1개월": (["1개월", "한달", "30일"], 30),
+    "3개월": (["3개월", "90일"], 90),
+    "6개월": (["6개월", "180일"], 180),
+    "1년": (["1년", "12개월", "365일"], 365),
+}
+
+
+def period_texts(site_cfg: dict) -> list[str]:
+    """고른 기간부터 더 긴 기간 순으로, 화면에서 찾을 버튼 글자 목록."""
+    if site_cfg.get("period_texts"):
+        return list(site_cfg["period_texts"])
+    names = list(PERIODS)
+    start = names.index(site_cfg.get("period", "1주일")) if site_cfg.get("period") in PERIODS else 0
+    return [t for name in names[start:] for t in PERIODS[name][0]]
+
+
+def period_days(site_cfg: dict) -> int:
+    return PERIODS.get(site_cfg.get("period", "1주일"), PERIODS["1주일"])[1]
 
 
 def _merge(base: dict, override: dict) -> dict:

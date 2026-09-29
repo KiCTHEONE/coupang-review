@@ -126,7 +126,7 @@
 
   <section class="card">
     <details id="settingsBox">
-      <summary>⚙️ 설정 (가게 이름 · 말투 · API 키)</summary>
+      <summary>⚙️ 설정 (가게 이름 · 말투 · 조회 기간 · API 키)</summary>
       <div class="grid2" style="margin-top:12px">
         <label>가게 이름 <input id="s-name"></label>
         <label>답글 끝 서명 <input id="s-signature" placeholder="- OO치킨 사장 드림"></label>
@@ -134,6 +134,11 @@
           <select id="s-min_rating">
             <option value="1">1점 이상 (전부)</option><option value="2">2점 이상</option>
             <option value="3">3점 이상</option><option value="4">4점 이상</option><option value="5">5점만</option>
+          </select>
+        </label>
+        <label>리뷰 조회 기간
+          <select id="s-period">
+            <option>1주일</option><option>1개월</option><option>3개월</option><option>6개월</option><option>1년</option>
           </select>
         </label>
         <label>Gemini API 키 <input id="s-api_key" type="password" autocomplete="off"></label>
@@ -254,12 +259,13 @@ async function loadSettings() {
   const s = await api("/api/settings");
   for (const k of ["name", "signature", "tone", "extra_instructions"]) $("#s-" + k).value = s[k] || "";
   $("#s-min_rating").value = String(s.min_rating);
+  $("#s-period").value = s.period || "1주일";
   $("#s-api_key").placeholder = s.api_key_set ? "저장됨 (바꿀 때만 입력)" : "AIza… 붙여넣기";
   if (!s.api_key_set) $("#settingsBox").open = true;
 }
 
 $("#saveBtn").onclick = async () => {
-  const body = { min_rating: +$("#s-min_rating").value, api_key: $("#s-api_key").value };
+  const body = { min_rating: +$("#s-min_rating").value, period: $("#s-period").value, api_key: $("#s-api_key").value };
   for (const k of ["name", "signature", "tone", "extra_instructions"]) body[k] = $("#s-" + k).value;
   const r = await api("/api/settings", body);
   if (r.ok) { $("#s-api_key").value = ""; $("#saveMsg").textContent = "저장했어요 ✓"; loadSettings(); setTimeout(() => $("#saveMsg").textContent = "", 2500); }

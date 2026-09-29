@@ -17,7 +17,7 @@ from pathlib import Path
 
 import yaml
 
-from .config import load_config
+from .config import PERIODS, load_config
 from .state import ReplyState
 
 log = logging.getLogger("coupang_review")
@@ -71,6 +71,7 @@ class App:
             "tone": cfg["store"]["tone"],
             "extra_instructions": cfg["store"]["extra_instructions"],
             "min_rating": int(cfg["reply"]["min_rating_to_auto_reply"]),
+            "period": cfg["site"].get("period", "1주일"),
             "api_key_set": bool((cfg["reply"].get("api_key") or "").strip() or os.environ.get("GEMINI_API_KEY")),
         }
 
@@ -83,6 +84,8 @@ class App:
                 store[k] = str(data[k]).strip()
         if "min_rating" in data:
             reply["min_rating_to_auto_reply"] = max(1, min(5, int(data["min_rating"])))
+        if data.get("period") in PERIODS:
+            raw.setdefault("site", {})["period"] = data["period"]
         if (data.get("api_key") or "").strip():
             reply["api_key"] = data["api_key"].strip()
         self.config_path.write_text(yaml.safe_dump(raw, allow_unicode=True, sort_keys=False), encoding="utf-8")

@@ -45,14 +45,14 @@ def test_post_requires_app_header(server):
 
 
 def test_settings_save_hides_key(server):
-    code, r = _req("/api/settings", {"name": "우리치킨", "min_rating": 1, "api_key": "AIza-secret", "tone": "웃기게"},
+    code, r = _req("/api/settings", {"name": "우리치킨", "min_rating": 1, "api_key": "AIza-secret", "tone": "웃기게", "period": "1개월"},
                    {"X-Review-App": "1"})
     assert code == 200 and r["ok"]
     saved = yaml.safe_load(server.read_text(encoding="utf-8"))
     assert saved["store"]["name"] == "우리치킨" and saved["reply"]["api_key"] == "AIza-secret"
-    assert saved["reply"]["min_rating_to_auto_reply"] == 1
+    assert saved["reply"]["min_rating_to_auto_reply"] == 1 and saved["site"]["period"] == "1개월"
     code, s = _req("/api/settings")
-    assert s["api_key_set"] is True and "AIza-secret" not in json.dumps(s)
+    assert s["api_key_set"] is True and "AIza-secret" not in json.dumps(s) and s["period"] == "1개월"
     # 빈 키를 보내면 기존 키를 지우지 않음
     _req("/api/settings", {"api_key": ""}, {"X-Review-App": "1"})
     assert yaml.safe_load(server.read_text(encoding="utf-8"))["reply"]["api_key"] == "AIza-secret"
