@@ -79,7 +79,7 @@ python -m coupang_review run --post
 
 6. 화면의 리뷰를 다 처리하면 "더보기"를 누르거나 스크롤해서 더 불러오고, 다음 페이지로 넘어가며 **끝까지** 처리합니다.
 
-조회 기간은 `site.period`(1주일/1개월/3개월/6개월/1년)로 정하고, 버튼 글자가 아예 다르면 `site.period_texts`에 직접 적으세요. 댓글, 댓글 버튼 글자가 다르면(예: "답변하기") `config.yaml`의 `site.reply_button_text`를 바꾸세요.
+조회 기간은 `site.period`(1주일/1개월/3개월/6개월/1년)로 정하고, 버튼 글자가 아예 다르면 `site.period_texts`에 직접 적으세요. 댓글 버튼 글자가 다르면(예: "답변하기") `config.yaml`의 `site.reply_button_text`를 바꾸세요.
 그래도 안 되면 `python -m coupang_review inspect`로 `debug/` 폴더에 페이지를 저장해 확인할 수 있습니다. 이때 `site.mode: selectors`로 바꾸고 CSS 셀렉터를 직접 지정할 수도 있습니다.
 
 ## 주의사항
