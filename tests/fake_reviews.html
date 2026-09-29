@@ -1,0 +1,31 @@
+<!doctype html><html><body>
+<a>로그아웃</a>
+<ul>
+  <li class="review-item" data-review-id="r1">
+    <span class="nickname">김**</span><div class="rating">5</div>
+    <span class="menu">후라이드치킨</span><span class="date">2026-09-28</span>
+    <p class="content">바삭하고 맛있어요!</p>
+    <button onclick="openReply(this)">사장님 댓글 등록</button>
+  </li>
+  <li class="review-item" data-review-id="r2">
+    <span class="nickname">이**</span><div class="rating">2</div>
+    <p class="content">배달이 너무 늦었어요</p>
+    <button onclick="openReply(this)">사장님 댓글 등록</button>
+  </li>
+  <li class="review-item" data-review-id="r3">
+    <span class="nickname">박**</span><div class="rating">4</div>
+    <p class="content">양이 많아요</p>
+    <div class="owner-reply">감사합니다</div>
+  </li>
+</ul>
+<script>
+function openReply(btn){
+  const li = btn.closest('li');
+  const ta = document.createElement('textarea');
+  const ok = document.createElement('button');
+  ok.textContent = '등록';
+  ok.onclick = () => { const d=document.createElement('div'); d.className='owner-reply'; d.textContent=ta.value; li.appendChild(d); ta.remove(); ok.remove(); btn.remove(); };
+  li.append(ta, ok);
+}
+</script>
+</body></html>
