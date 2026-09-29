@@ -20,6 +20,7 @@ DEFAULTS: dict[str, Any] = {
         "use_ai": True,
         "api_key": "",  # Gemini API 키 (비우면 GEMINI_API_KEY 환경변수)
         "model": "gemini-flash-latest",
+        "min_interval_sec": 7,  # Gemini 호출 사이 최소 간격(초)
     },
     "run": {
         "dry_run": True,  # true면 답글을 생성만 하고 등록하지 않음

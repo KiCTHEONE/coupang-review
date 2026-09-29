@@ -17,7 +17,7 @@ from typing import Callable
 
 from playwright.sync_api import BrowserContext, Locator, Page, TimeoutError as PWTimeout
 
-from .models import Review
+from .models import QuotaExhausted, Review
 
 log = logging.getLogger(__name__)
 
@@ -330,6 +330,8 @@ class CoupangEatsStore:
             if self.reader:
                 try:
                     data = self.reader(text, item.screenshot())
+                except QuotaExhausted:
+                    raise
                 except Exception as e:  # 읽기 실패 시 글자 기반 추출로 대체
                     log.warning("AI로 카드 읽기 실패, 글자 기반으로 추출: %s", e)
             data = data or heuristic_read(text, self.reply_button_re)
@@ -341,6 +343,7 @@ class CoupangEatsStore:
                 rating=data.get("rating") or None,
                 text=data.get("text", ""),
                 menu=data.get("menu", ""),
+                ai_reply=data.get("reply", ""),
                 has_reply=False,  # auto 모드는 '댓글 등록' 버튼이 있는 카드만 찾으므로 항상 미답변
             )
         attr = self.sel.get("review_id_attr")

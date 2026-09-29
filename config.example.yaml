@@ -10,7 +10,8 @@ reply:
   max_length: 300
   use_ai: true                  # false면 템플릿 답글
   api_key: ""                   # 여기에 Gemini API 키를 붙여넣으세요 (https://aistudio.google.com/apikey)
-  model: gemini-flash-latest    # 더 좋은 품질을 원하면 gemini-pro-latest
+  model: gemini-flash-latest    # 무료 한도에 자주 걸리면 gemini-flash-lite-latest (한도가 더 넉넉함)
+  min_interval_sec: 7           # Gemini 호출 사이 최소 간격(초). 무료 등급 분당 한도 보호용
 
 run:
   dry_run: true                 # 처음엔 true로 답글 품질을 확인한 뒤 false 또는 --post

@@ -16,10 +16,12 @@ from playwright.sync_api import sync_playwright
 from .browser import open_context, save_session, start_browser
 from .config import load_config
 from .generator import ReplyGenerator
+from .models import AIUnavailable, QuotaExhausted
 from .site import CoupangEatsStore
 from .state import ReplyState
 
 log = logging.getLogger("coupang_review")
+_RUN_ID = str(int(time.time()))
 
 
 def cmd_login(cfg: dict) -> None:
@@ -55,72 +57,85 @@ def cmd_inspect(cfg: dict) -> None:
 
 def run_once(cfg: dict, dry_run: bool) -> int:
     run_cfg = cfg["run"]
-    min_rating = int(cfg["reply"]["min_rating_to_auto_reply"])
     state = ReplyState(run_cfg["state_file"])
     generator = ReplyGenerator(cfg["store"], cfg["reply"])
-    posted = 0
     seen: set[str] = set()
 
     with sync_playwright() as p, open_context(p, cfg, headless=run_cfg["headless"]) as ctx:
         store = CoupangEatsStore(ctx, cfg["site"], reader=generator.read_card)
         store.ensure_login()
         store.open_reviews()
-
-        max_pages = int(run_cfg["max_pages"]) or 1000
-        max_replies = int(run_cfg["max_replies_per_run"]) or 10**9
-        for page_no in range(1, max_pages + 1):
-            log.info("리뷰 %d페이지 처리", page_no)
-            # 답글 등록 후 목록이 다시 그려질 수 있어, 한 건 처리할 때마다 목록을 새로 읽는다.
-            more_loads = 0
-            while posted < max_replies:
-                target = None
-                for item in store.review_items():
-                    pre_key = store.item_key(item)
-                    if pre_key and (pre_key in seen or state.has(pre_key)):
-                        continue
-                    review = store.parse_review(item)
-                    if review is None:
-                        seen.add(pre_key or "")
-                        continue
-                    if review.key in seen:
-                        continue
-                    seen.add(review.key)
-                    if review.has_reply or state.has(review.key):
-                        continue
-                    if not review.text and review.rating is None:
-                        log.warning("리뷰 내용을 읽지 못했습니다. 셀렉터를 확인하세요 (inspect 명령).")
-                        continue
-                    if review.rating is not None and review.rating < min_rating:
-                        log.info("별점 %d점 리뷰는 직접 답글을 권장해 건너뜁니다: %s", review.rating, review.text[:40])
-                        if not dry_run:
-                            state.add(review.key, "", skipped="low_rating", author=review.author, rating=review.rating)
-                        continue
-                    target = (item, review)
-                    break
-                if target is None:
-                    # 화면의 리뷰를 다 봤으면 '더보기'/스크롤로 더 불러온다.
-                    if more_loads < 500 and store.load_more():
-                        more_loads += 1
-                        continue
-                    break
-
-                item, review = target
-                reply = generator.generate(review)
-                print(f"\n[리뷰] {review.author} ★{review.rating} | {review.menu}\n  {review.text}\n[답글]\n  {reply}")
-                if dry_run:
-                    continue
-                if store.post_reply(item, reply):
-                    state.add(review.key, reply, author=review.author, rating=review.rating)
-                    posted += 1
-                    log.info("답글 등록 완료 (%d)", posted)
-                else:
-                    log.error("답글 등록을 확인하지 못했습니다: %s", review.key)
-                time.sleep(float(run_cfg["delay_between_replies_sec"]))
-
-            if posted >= max_replies or not store.next_page():
-                break
+        try:
+            posted = _process(store, generator, state, cfg, dry_run, seen)
+        except QuotaExhausted as e:
+            log.warning("%s 여기서 멈춥니다. 이미 단 답글은 기록돼 있으니, 한도가 풀린 뒤(보통 다음 날) 다시 실행하면 이어서 처리합니다.", e)
+            posted = sum(1 for v in state.data.values() if v.get("reply") and v.get("run_id") == _RUN_ID)
         save_session(ctx, cfg)  # 갱신된 로그인 쿠키 저장
     log.info("확인한 리뷰 %d개", len(seen))
+    return posted
+
+
+def _process(store, generator, state, cfg: dict, dry_run: bool, seen: set[str]) -> int:
+    run_cfg = cfg["run"]
+    min_rating = int(cfg["reply"]["min_rating_to_auto_reply"])
+    posted = 0
+    max_pages = int(run_cfg["max_pages"]) or 1000
+    max_replies = int(run_cfg["max_replies_per_run"]) or 10**9
+    for page_no in range(1, max_pages + 1):
+        log.info("리뷰 %d페이지 처리", page_no)
+        # 답글 등록 후 목록이 다시 그려질 수 있어, 한 건 처리할 때마다 목록을 새로 읽는다.
+        more_loads = 0
+        while posted < max_replies:
+            target = None
+            for item in store.review_items():
+                pre_key = store.item_key(item)
+                if pre_key and (pre_key in seen or state.has(pre_key)):
+                    continue
+                review = store.parse_review(item)
+                if review is None:
+                    seen.add(pre_key or "")
+                    continue
+                if review.key in seen:
+                    continue
+                seen.add(review.key)
+                if review.has_reply or state.has(review.key):
+                    continue
+                if not review.text and review.rating is None:
+                    log.warning("리뷰 내용을 읽지 못했습니다. 셀렉터를 확인하세요 (inspect 명령).")
+                    continue
+                if review.rating is not None and review.rating < min_rating:
+                    log.info("별점 %d점 리뷰는 직접 답글을 권장해 건너뜁니다: %s", review.rating, review.text[:40])
+                    if not dry_run:
+                        state.add(review.key, "", skipped="low_rating", author=review.author, rating=review.rating)
+                    continue
+                target = (item, review)
+                break
+            if target is None:
+                # 화면의 리뷰를 다 봤으면 '더보기'/스크롤로 더 불러온다.
+                if more_loads < 500 and store.load_more():
+                    more_loads += 1
+                    continue
+                break
+
+            item, review = target
+            try:
+                reply = generator.finalize(review.ai_reply) if review.ai_reply.strip() else generator.generate(review)
+            except AIUnavailable as e:
+                log.warning("답글을 만들지 못해 이 리뷰는 건너뜁니다 (다음 실행 때 다시 시도): %s", e)
+                continue
+            print(f"\n[리뷰] {review.author} ★{review.rating} | {review.menu}\n  {review.text}\n[답글]\n  {reply}")
+            if dry_run:
+                continue
+            if store.post_reply(item, reply):
+                state.add(review.key, reply, author=review.author, rating=review.rating, run_id=_RUN_ID)
+                posted += 1
+                log.info("답글 등록 완료 (%d)", posted)
+            else:
+                log.error("답글 등록을 확인하지 못했습니다: %s", review.key)
+            time.sleep(float(run_cfg["delay_between_replies_sec"]))
+
+        if posted >= max_replies or not store.next_page():
+            break
     return posted
 
 
