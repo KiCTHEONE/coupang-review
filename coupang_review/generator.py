@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import random
+import time
 
 from google import genai
 from google.genai import errors, types
@@ -101,12 +102,23 @@ class ReplyGenerator:
         elif reply_cfg.get("use_ai", True):
             log.warning("Gemini API 키가 없어 템플릿 답글을 사용합니다. (config.yaml 의 reply.api_key)")
 
+    def _call(self, **kwargs):
+        """Gemini 호출. 한도 초과(429)나 일시 장애(5xx)면 기다렸다가 다시 시도."""
+        waits = [15, 30, 60, 60]
+        for attempt in range(len(waits) + 1):
+            try:
+                return self.client.models.generate_content(model=self.model, **kwargs)
+            except errors.APIError as e:
+                if attempt == len(waits) or not (e.code == 429 or (e.code or 0) >= 500):
+                    raise
+                log.info("Gemini 한도/일시 오류(%s), %d초 후 다시 시도합니다", e.code, waits[attempt])
+                time.sleep(waits[attempt])
+
     def read_card(self, card_text: str, png: bytes) -> dict | None:
         """리뷰 카드 스크린샷+글자에서 리뷰 정보를 추출한다. AI를 못 쓰면 None."""
         if self.client is None:
             return None
-        response = self.client.models.generate_content(
-            model=self.model,
+        response = self._call(
             contents=[
                 types.Part.from_bytes(data=png, mime_type="image/png"),
                 CARD_PROMPT.format(text=card_text[:4000]),
@@ -139,8 +151,7 @@ class ReplyGenerator:
             "</review>"
         )
         try:
-            response = self.client.models.generate_content(
-                model=self.model,
+            response = self._call(
                 contents=prompt,
                 config=types.GenerateContentConfig(system_instruction=self._system()),
             )

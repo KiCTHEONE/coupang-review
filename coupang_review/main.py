@@ -66,10 +66,13 @@ def run_once(cfg: dict, dry_run: bool) -> int:
         store.ensure_login()
         store.open_reviews()
 
-        for page_no in range(1, int(run_cfg["max_pages"]) + 1):
+        max_pages = int(run_cfg["max_pages"]) or 1000
+        max_replies = int(run_cfg["max_replies_per_run"]) or 10**9
+        for page_no in range(1, max_pages + 1):
             log.info("리뷰 %d페이지 처리", page_no)
             # 답글 등록 후 목록이 다시 그려질 수 있어, 한 건 처리할 때마다 목록을 새로 읽는다.
-            while posted < int(run_cfg["max_replies_per_run"]):
+            more_loads = 0
+            while posted < max_replies:
                 target = None
                 for item in store.review_items():
                     pre_key = store.item_key(item)
@@ -95,6 +98,10 @@ def run_once(cfg: dict, dry_run: bool) -> int:
                     target = (item, review)
                     break
                 if target is None:
+                    # 화면의 리뷰를 다 봤으면 '더보기'/스크롤로 더 불러온다.
+                    if more_loads < 500 and store.load_more():
+                        more_loads += 1
+                        continue
                     break
 
                 item, review = target
@@ -110,9 +117,10 @@ def run_once(cfg: dict, dry_run: bool) -> int:
                     log.error("답글 등록을 확인하지 못했습니다: %s", review.key)
                 time.sleep(float(run_cfg["delay_between_replies_sec"]))
 
-            if posted >= int(run_cfg["max_replies_per_run"]) or not store.next_page():
+            if posted >= max_replies or not store.next_page():
                 break
         save_session(ctx, cfg)  # 갱신된 로그인 쿠키 저장
+    log.info("확인한 리뷰 %d개", len(seen))
     return posted
 
 

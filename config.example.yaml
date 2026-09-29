@@ -14,8 +14,8 @@ reply:
 
 run:
   dry_run: true                 # 처음엔 true로 답글 품질을 확인한 뒤 false 또는 --post
-  max_pages: 3
-  max_replies_per_run: 20
+  max_pages: 0                  # 0이면 끝까지
+  max_replies_per_run: 0        # 0이면 제한 없음
   delay_between_replies_sec: 3
   interval_minutes: 0           # 예: 60 → 1시간마다 반복 실행
   headless: false               # 쿠팡이츠 차단을 피하려면 false 권장

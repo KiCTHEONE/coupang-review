@@ -23,8 +23,8 @@ DEFAULTS: dict[str, Any] = {
     },
     "run": {
         "dry_run": True,  # true면 답글을 생성만 하고 등록하지 않음
-        "max_pages": 3,
-        "max_replies_per_run": 20,
+        "max_pages": 0,  # 0이면 끝까지
+        "max_replies_per_run": 0,  # 0이면 제한 없음
         "delay_between_replies_sec": 3,
         "interval_minutes": 0,  # 0이면 1회 실행, 그 외엔 주기 반복
         "headless": False,  # 쿠팡이츠가 headless 브라우저를 차단할 수 있어 기본은 창을 띄움
@@ -45,6 +45,12 @@ DEFAULTS: dict[str, Any] = {
         "mode": "auto",
         "reply_button_text": r"^(사장님\s*)?(댓글|답글)\s*(등록|작성|달기|쓰기)",
         "submit_button_text": r"^(등록|등록하기|작성|작성하기|완료|저장|확인)$",
+        # 조회 기간: 화면에서 이 글자의 버튼을 앞에서부터 찾아 누름 (가장 긴 기간 우선)
+        "period_texts": ["1년", "12개월", "365일", "6개월", "3개월", "1개월"],
+        "period_opener_text": r"^\s*(오늘|어제|최근\s*\d+\s*(일|주|개월|년)|\d+\s*(일|주|주일|개월|년)|기간\s*선택|조회\s*기간)\s*$",
+        "period_apply_texts": ["조회", "검색", "적용"],
+        "period_days": 365,  # 날짜 입력칸 방식일 때 며칠 전부터
+        "load_more_texts": ["더보기", "리뷰 더보기", "더 보기"],
         "login_url": "https://store.coupangeats.com/merchant/login",
         "reviews_url": "https://store.coupangeats.com/merchant/management/reviews",
         # login_*, unanswered_filter, next_page 는 두 모드 모두 사용. 나머지는 selectors 모드 전용.

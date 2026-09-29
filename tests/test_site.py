@@ -67,3 +67,14 @@ def test_auto_mode_modal_and_confirm(open_store):
 def test_card_key_ignores_relative_date():
     assert card_key("김**\n3일 전\n맛있어요") == card_key("김**\n4일 전\n맛있어요")
     assert card_key("김**\n맛있어요") != card_key("김**\n별로예요")
+
+
+def test_period_and_load_more(open_store):
+    store = open_store("fake_reviews_period.html", "auto")
+    assert len(store.review_items()) == 1  # '오늘'만 보이는 상태
+    store.apply_period()
+    assert store.page.locator("#period").inner_text() == "1년"
+    assert len(store.review_items()) == 2  # 1년 조회 후 (3개 중 1개는 답글 있음)
+    assert store.load_more()
+    assert len(store.review_items()) == 4
+    assert not store.load_more() or len(store.review_items()) == 4

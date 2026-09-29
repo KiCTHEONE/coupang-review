@@ -1,0 +1,43 @@
+<!doctype html><html><body>
+<div class="filter">
+  <button id="period" class="css-sel">오늘</button>
+  <ul id="options" style="display:none"><li>오늘</li><li>1주일</li><li>1개월</li><li>6개월</li><li>1년</li></ul>
+  <button id="search">조회</button>
+</div>
+<div id="list" class="css-list"></div>
+<button id="more" style="display:none">더보기</button>
+<script>
+const all = [
+  ['김**', '★★★★★', '오늘도 맛있어요', false],
+  ['이**', '★★★★', '지난달에 먹었는데 또 생각나요', false],
+  ['박**', '★★★★★', '반년 전부터 단골입니다', true],
+  ['최**', '★★★★★', '작년 가을에 처음 먹고 반함', false],
+  ['정**', '★★★★', '1년 가까이 시켜먹는 중', false],
+];
+let period = '오늘', shown = 1;
+const $ = s => document.querySelector(s);
+$('#period').onclick = () => $('#options').style.display = 'block';
+document.querySelectorAll('#options li').forEach(li => li.onclick = () => {
+  period = li.innerText; $('#period').innerText = period; $('#options').style.display = 'none';
+});
+$('#search').onclick = () => { shown = period === '1년' ? 3 : 1; render(); };
+$('#more').onclick = () => { shown += 2; render(); };
+function render() {
+  const items = all.slice(0, Math.min(shown, all.length));
+  $('#list').innerHTML = items.map(([a, s, t, done], i) => `
+    <div class="css-card" data-i="${i}"><div class="css-h"><span>${a}</span></div><div>${s}</div><div class="css-t">${t}</div>
+    <div class="css-act">${done ? '<p>사장님 댓글: 감사합니다</p>' : '<button class="rb">사장님 댓글 등록</button>'}</div></div>`).join('');
+  $('#more').style.display = (period === '1년' && shown < all.length) ? 'block' : 'none';
+  document.querySelectorAll('.rb').forEach(b => b.onclick = () => {
+    const card = b.closest('.css-card');
+    card.querySelector('.css-act').innerHTML = '<textarea></textarea><button class="ok">등록</button>';
+    card.querySelector('.ok').onclick = () => {
+      all[+card.dataset.i][3] = true;
+      window.posted = (window.posted || 0) + 1;
+      card.querySelector('.css-act').innerHTML = '<p>사장님 댓글: ' + card.querySelector('textarea').value + '</p>';
+    };
+  });
+}
+render();
+</script>
+</body></html>

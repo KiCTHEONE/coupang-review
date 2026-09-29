@@ -192,6 +192,7 @@ class CoupangEatsStore:
     def open_reviews(self) -> None:
         self.page.goto(self.cfg["reviews_url"], wait_until="domcontentloaded")
         self._settle()
+        self.apply_period()
         if self.sel.get("unanswered_filter"):
             try:
                 self.page.locator(self.sel["unanswered_filter"]).first.click(timeout=3000)
@@ -200,6 +201,85 @@ class CoupangEatsStore:
             except PWTimeout:
                 log.debug("미답변 필터 없음: %s", self.sel["unanswered_filter"])
         time.sleep(1)  # 목록 렌더링 대기
+
+    # ---------- 조회 기간 ----------
+    def _click_text(self, texts: list[str]) -> str | None:
+        """화면에 보이는 요소 중 글자가 정확히 일치하는 것을 우선순위대로 찾아 클릭."""
+        for t in texts:
+            loc = self.page.get_by_text(re.compile(rf"^\s*{re.escape(t)}\s*$")).locator("visible=true")
+            if loc.count():
+                try:
+                    loc.first.click(timeout=2000)
+                    return t
+                except PWTimeout:
+                    continue
+        return None
+
+    def apply_period(self) -> None:
+        """리뷰 조회 기간을 설정된 가장 긴 기간으로 바꾼다 (기본 1년, 없으면 6개월→3개월…)."""
+        periods = list(self.cfg.get("period_texts") or [])
+        if not periods:
+            return
+        chosen = self._click_text(periods)
+        if not chosen:
+            # 기간 선택이 드롭다운에 숨어 있으면 현재 기간(예: '오늘')을 눌러 펼친 뒤 다시 찾는다.
+            opener = self.page.get_by_text(re.compile(self.cfg.get("period_opener_text", ""))).locator("visible=true")
+            if self.cfg.get("period_opener_text") and opener.count():
+                try:
+                    opener.first.click(timeout=2000)
+                    time.sleep(0.5)
+                    chosen = self._click_text(periods)
+                except PWTimeout:
+                    pass
+        if not chosen:
+            chosen = self._fill_date_inputs()
+        if not chosen:
+            log.warning("조회 기간을 바꾸지 못했습니다. 화면에 보이는 기본 기간으로 진행합니다.")
+            return
+        time.sleep(0.5)
+        self._click_text(self.cfg.get("period_apply_texts") or [])  # '조회' 같은 버튼이 있으면 누름
+        self._settle()
+        time.sleep(1)
+        log.info("조회 기간: %s", chosen)
+
+    def _fill_date_inputs(self) -> str | None:
+        """시작일/종료일 입력칸이 있으면 1년 전 ~ 오늘로 입력."""
+        from datetime import date, timedelta
+
+        inputs = self.page.locator("input:visible")
+        dated = []
+        for i in range(min(inputs.count(), 20)):
+            val = inputs.nth(i).input_value()
+            m = re.fullmatch(r"(\d{4})([.\-/])(\d{1,2})\2(\d{1,2})\.?", val.strip())
+            if m:
+                dated.append((inputs.nth(i), m.group(2)))
+        if len(dated) < 2:
+            return None
+        start = date.today() - timedelta(days=int(self.cfg.get("period_days", 365)))
+        (box, sep) = dated[0]
+        try:
+            box.fill(start.strftime(f"%Y{sep}%m{sep}%d"), timeout=2000)
+            box.press("Enter")
+            return f"{start} ~ 오늘"
+        except Exception:  # 읽기 전용 달력 입력칸 등
+            return None
+
+    def load_more(self) -> bool:
+        """'더보기' 버튼이나 스크롤로 목록을 더 불러온다. 새 내용이 생기면 True."""
+        size_js = "[document.getElementsByTagName('*').length, document.documentElement.scrollHeight]"
+        before = self.page.evaluate(size_js)
+        if not self._click_text(self.cfg.get("load_more_texts") or []):
+            self.page.evaluate("""() => {
+              window.scrollTo(0, document.body.scrollHeight);
+              document.querySelectorAll('*').forEach(el => {
+                if (el.scrollHeight > el.clientHeight + 50 && /(auto|scroll)/.test(getComputedStyle(el).overflowY))
+                  el.scrollTop = el.scrollHeight;
+              });
+            }""")
+        self._settle(5000)
+        time.sleep(1.5)
+        after = self.page.evaluate(size_js)
+        return after[0] > before[0] or after[1] > before[1]
 
     def review_items(self) -> list[Locator]:
         if self.mode == "auto":
