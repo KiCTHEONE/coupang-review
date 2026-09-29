@@ -20,9 +20,7 @@ run:
   interval_minutes: 0           # 예: 60 → 1시간마다 반복 실행
   headless: true
 
-# 사장님 사이트 화면 구조에 맞게 셀렉터를 조정해야 할 수 있습니다.
-# 기본값은 coupang_review/config.py 의 DEFAULTS 참고. 필요한 항목만 덮어쓰면 됩니다.
+# 리뷰 찾기는 기본적으로 자동입니다 ('댓글 등록' 버튼 글자로 찾고, Claude가 카드를 읽음).
+# 버튼 글자가 다르면 아래를 바꾸세요.
 # site:
-#   selectors:
-#     unanswered_filter: "text=미답변"
-#     review_item: "div.review-card"
+#   reply_button_text: "^(사장님\\s*)?(댓글|답글)\\s*(등록|작성|달기|쓰기)"

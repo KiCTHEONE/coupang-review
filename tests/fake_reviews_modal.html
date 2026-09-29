@@ -1,0 +1,38 @@
+<!doctype html><html><body>
+<div class="css-1x2y3z">
+  <div class="tabs"><button class="css-tab">전체</button><button class="css-tab" onclick="document.querySelectorAll('.css-9ab8c7.answered').forEach(e=>e.remove())">미답변 2</button></div>
+  <div class="css-list">
+    <div class="css-9ab8c7"><div class="css-aa"><span>김**</span><span>3일 전</span></div>
+      <div class="css-bb">★★★★★</div><div class="css-cc">양념치킨 1개</div>
+      <div class="css-dd">양념이 달달하고 맛있어요. 배달도 빨랐어요</div>
+      <div class="css-ee"><button class="css-btn">사장님 댓글 등록하기</button></div></div>
+    <div class="css-9ab8c7"><div class="css-aa"><span>최**</span><span>2026.09.27</span></div>
+      <div class="css-bb">★</div><div class="css-cc">후라이드치킨 1개</div>
+      <div class="css-dd">식어서 왔어요</div>
+      <div class="css-ee"><button class="css-btn">사장님 댓글 등록하기</button></div></div>
+    <div class="css-9ab8c7 answered"><div class="css-aa"><span>정**</span><span>5일 전</span></div>
+      <div class="css-bb">★★★★</div><div class="css-dd">잘 먹었습니다</div>
+      <div class="css-ee"><span>사장님 댓글</span><p>감사합니다!</p><button class="css-btn">수정</button></div></div>
+  </div>
+</div>
+<div id="modal-root"></div>
+<script>
+document.querySelectorAll('.css-btn').forEach(b => {
+  if (!/등록/.test(b.innerText)) return;
+  b.onclick = () => {
+    const card = b.closest('.css-9ab8c7');
+    const root = document.getElementById('modal-root');
+    root.innerHTML = '<div role="dialog" class="ReactModal"><textarea></textarea><button>취소</button><button id="ok">등록</button></div>';
+    root.querySelector('#ok').onclick = () => {
+      const text = root.querySelector('textarea').value;
+      root.innerHTML = '<div role="dialog" class="ReactModal"><p>댓글을 등록하시겠습니까?</p><button>취소</button><button id="c">확인</button></div>';
+      root.querySelector('#c').onclick = () => {
+        root.innerHTML = '';
+        card.querySelector('.css-ee').innerHTML = '<span>사장님 댓글</span><p>' + text + '</p><button class="css-btn">수정</button>';
+        window.posted = (window.posted || []).concat([text]);
+      };
+    };
+  };
+});
+</script>
+</body></html>

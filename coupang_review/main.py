@@ -24,6 +24,7 @@ def _launch(p, cfg: dict, headless: bool):
     return p.chromium.launch_persistent_context(
         cfg["run"]["profile_dir"],
         headless=headless,
+        executable_path=cfg["run"].get("browser_executable") or None,
         locale="ko-KR",
         viewport={"width": 1400, "height": 1000},
     )
@@ -42,7 +43,7 @@ def cmd_login(cfg: dict) -> None:
 def cmd_inspect(cfg: dict) -> None:
     with sync_playwright() as p:
         ctx = _launch(p, cfg, headless=cfg["run"]["headless"])
-        store = CoupangEatsStore(ctx, cfg["site"])
+        store = CoupangEatsStore(ctx, cfg["site"], reader=ReplyGenerator(cfg["store"], cfg["reply"]).read_card)
         store.ensure_login()
         store.open_reviews()
         out = store.dump()
@@ -50,6 +51,8 @@ def cmd_inspect(cfg: dict) -> None:
         print(f"저장 위치: {out}/  |  인식된 리뷰 수: {len(items)}")
         for item in items[:10]:
             r = store.parse_review(item)
+            if r is None:
+                continue
             print(f"- [{r.key}] {r.author} ★{r.rating} 답글={'O' if r.has_reply else 'X'} | {r.menu} | {r.text[:60]!r}")
         ctx.close()
 
@@ -64,7 +67,7 @@ def run_once(cfg: dict, dry_run: bool) -> int:
 
     with sync_playwright() as p:
         ctx = _launch(p, cfg, headless=run_cfg["headless"])
-        store = CoupangEatsStore(ctx, cfg["site"])
+        store = CoupangEatsStore(ctx, cfg["site"], reader=generator.read_card)
         store.ensure_login()
         store.open_reviews()
 
@@ -74,7 +77,13 @@ def run_once(cfg: dict, dry_run: bool) -> int:
             while posted < int(run_cfg["max_replies_per_run"]):
                 target = None
                 for item in store.review_items():
+                    pre_key = store.item_key(item)
+                    if pre_key and (pre_key in seen or state.has(pre_key)):
+                        continue
                     review = store.parse_review(item)
+                    if review is None:
+                        seen.add(pre_key or "")
+                        continue
                     if review.key in seen:
                         continue
                     seen.add(review.key)
@@ -85,6 +94,8 @@ def run_once(cfg: dict, dry_run: bool) -> int:
                         continue
                     if review.rating is not None and review.rating < min_rating:
                         log.info("별점 %d점 리뷰는 직접 답글을 권장해 건너뜁니다: %s", review.rating, review.text[:40])
+                        if not dry_run:
+                            state.add(review.key, "", skipped="low_rating", author=review.author, rating=review.rating)
                         continue
                     target = (item, review)
                     break

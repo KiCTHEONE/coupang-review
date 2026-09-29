@@ -32,16 +32,20 @@ DEFAULTS: dict[str, Any] = {
         "profile_dir": ".browser-profile",
     },
     "site": {
+        # auto: HTML 구조를 몰라도 '댓글 등록' 버튼 글자로 리뷰를 찾고 Claude가 카드를 읽음 (권장)
+        # selectors: 아래 CSS 셀렉터를 직접 지정해서 사용
+        "mode": "auto",
+        "reply_button_text": r"^(사장님\s*)?(댓글|답글)\s*(등록|작성|달기|쓰기)",
+        "submit_button_text": r"^(등록|등록하기|작성|작성하기|완료|저장|확인)$",
         "login_url": "https://store.coupangeats.com/merchant/login",
         "reviews_url": "https://store.coupangeats.com/merchant/management/reviews",
-        # 사장님 사이트 화면 구조가 바뀌면 아래 셀렉터를 수정하세요.
-        # `python -m coupang_review inspect` 로 현재 페이지 HTML/스크린샷을 저장해 확인할 수 있습니다.
+        # login_*, unanswered_filter, next_page 는 두 모드 모두 사용. 나머지는 selectors 모드 전용.
         "selectors": {
             "login_id": "input[name='loginId'], input#loginId, input[type='text']",
             "login_password": "input[name='password'], input#password, input[type='password']",
             "login_submit": "button[type='submit']",
             "logged_in_marker": "text=로그아웃",
-            "unanswered_filter": "",  # 예: "text=미답변" (비워두면 클릭 안 함)
+            "unanswered_filter": "text=/^\\s*미답변/",  # 있으면 클릭, 없으면 무시
             "review_item": "[class*='review-item'], [class*='ReviewItem'], li[class*='review']",
             "review_id_attr": "data-review-id",  # 리뷰 요소에 고유 ID 속성이 있으면 사용
             "author": "[class*='nickname'], [class*='name']",
