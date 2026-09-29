@@ -93,9 +93,10 @@ class ReplyGenerator:
         self.reply_cfg = reply_cfg
         self.max_length = int(reply_cfg.get("max_length", 300))
         self.client = None
-        has_credentials = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")
+        api_key = (reply_cfg.get("api_key") or "").strip()
+        has_credentials = api_key or os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")
         if reply_cfg.get("use_claude", True) and has_credentials:
-            self.client = anthropic.Anthropic()
+            self.client = anthropic.Anthropic(api_key=api_key) if api_key else anthropic.Anthropic()
         elif reply_cfg.get("use_claude", True):
             log.warning("ANTHROPIC_API_KEY가 없어 템플릿 답글을 사용합니다.")
 
