@@ -11,7 +11,7 @@ DEFAULTS: dict[str, Any] = {
     "store": {
         "name": "우리 가게",
         "signature": "",  # 답글 끝에 붙일 서명 (예: "- OO치킨 사장 드림")
-        "tone": "따뜻하고 정중한 존댓말",
+        "tone": "재치 있고 유쾌한 존댓말. 리뷰 내용(메뉴, 맛 표현 등)을 살린 말장난이나 센스 있는 한마디를 넣어 읽는 사람이 피식 웃게",
         "extra_instructions": "",
     },
     "reply": {
