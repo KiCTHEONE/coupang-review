@@ -17,9 +17,9 @@ DEFAULTS: dict[str, Any] = {
     "reply": {
         "min_rating_to_auto_reply": 3,  # 이 별점 미만은 자동 등록하지 않고 건너뜀 (사장님 직접 확인)
         "max_length": 300,
-        "use_claude": True,
-        "model": "claude-opus-5-5",
-        "effort": "low",
+        "use_ai": True,
+        "api_key": "",  # Gemini API 키 (비우면 GEMINI_API_KEY 환경변수)
+        "model": "gemini-flash-latest",
     },
     "run": {
         "dry_run": True,  # true면 답글을 생성만 하고 등록하지 않음
@@ -32,7 +32,7 @@ DEFAULTS: dict[str, Any] = {
         "profile_dir": ".browser-profile",
     },
     "site": {
-        # auto: HTML 구조를 몰라도 '댓글 등록' 버튼 글자로 리뷰를 찾고 Claude가 카드를 읽음 (권장)
+        # auto: HTML 구조를 몰라도 '댓글 등록' 버튼 글자로 리뷰를 찾고 Gemini가 카드를 읽음 (권장)
         # selectors: 아래 CSS 셀렉터를 직접 지정해서 사용
         "mode": "auto",
         "reply_button_text": r"^(사장님\s*)?(댓글|답글)\s*(등록|작성|달기|쓰기)",

@@ -1,13 +1,13 @@
-"""리뷰 답글 생성: Claude API 사용, 실패 시 템플릿으로 대체."""
+"""리뷰 답글 생성: Google Gemini API 사용, 실패 시 템플릿으로 대체."""
 from __future__ import annotations
 
-import base64
 import json
 import logging
 import os
 import random
 
-import anthropic
+from google import genai
+from google.genai import errors, types
 
 from .models import Review
 
@@ -75,7 +75,6 @@ CARD_SCHEMA = {
         "text": {"type": "string", "description": "고객이 쓴 리뷰 본문 그대로 (없으면 빈 문자열)"},
     },
     "required": ["is_review", "author", "rating", "menu", "text"],
-    "additionalProperties": False,
 }
 
 CARD_PROMPT = """쿠팡이츠 사장님 사이트의 리뷰 카드 스크린샷과 그 안의 글자입니다.
@@ -92,42 +91,30 @@ class ReplyGenerator:
         self.store_cfg = store_cfg
         self.reply_cfg = reply_cfg
         self.max_length = int(reply_cfg.get("max_length", 300))
+        self.model = reply_cfg.get("model", "gemini-flash-latest")
         self.client = None
-        api_key = (reply_cfg.get("api_key") or "").strip()
-        has_credentials = api_key or os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")
-        if reply_cfg.get("use_claude", True) and has_credentials:
-            self.client = anthropic.Anthropic(api_key=api_key) if api_key else anthropic.Anthropic()
-        elif reply_cfg.get("use_claude", True):
-            log.warning("ANTHROPIC_API_KEY가 없어 템플릿 답글을 사용합니다.")
+        api_key = (reply_cfg.get("api_key") or "").strip() or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        if reply_cfg.get("use_ai", True) and api_key:
+            self.client = genai.Client(api_key=api_key)
+        elif reply_cfg.get("use_ai", True):
+            log.warning("Gemini API 키가 없어 템플릿 답글을 사용합니다. (config.yaml 의 reply.api_key)")
 
     def read_card(self, card_text: str, png: bytes) -> dict | None:
-        """리뷰 카드 스크린샷+글자에서 리뷰 정보를 추출한다. Claude를 못 쓰면 None."""
+        """리뷰 카드 스크린샷+글자에서 리뷰 정보를 추출한다. AI를 못 쓰면 None."""
         if self.client is None:
             return None
-        response = self.client.beta.messages.create(
-            model=self.reply_cfg.get("model", "claude-opus-5-5"),
-            max_tokens=4000,
-            output_config={
-                "effort": "low",
-                "format": {"type": "json_schema", "schema": CARD_SCHEMA},
-            },
-            betas=["server-side-fallback-2026-07-01"],
-            fallbacks="default",
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "image", "source": {
-                        "type": "base64", "media_type": "image/png",
-                        "data": base64.standard_b64encode(png).decode("ascii"),
-                    }},
-                    {"type": "text", "text": CARD_PROMPT.format(text=card_text[:4000])},
-                ],
-            }],
+        response = self.client.models.generate_content(
+            model=self.model,
+            contents=[
+                types.Part.from_bytes(data=png, mime_type="image/png"),
+                CARD_PROMPT.format(text=card_text[:4000]),
+            ],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_json_schema=CARD_SCHEMA,
+            ),
         )
-        if response.stop_reason in ("refusal", "max_tokens"):
-            return None
-        text = next((b.text for b in response.content if b.type == "text"), "")
-        return json.loads(text) if text else None
+        return json.loads(response.text) if response.text else None
 
     def _system(self) -> str:
         extra = self.store_cfg.get("extra_instructions", "").strip()
@@ -150,30 +137,20 @@ class ReplyGenerator:
             "</review>"
         )
         try:
-            response = self.client.beta.messages.create(
-                model=self.reply_cfg.get("model", "claude-opus-5-5"),
-                max_tokens=16000,
-                system=self._system(),
-                output_config={"effort": self.reply_cfg.get("effort", "low")},
-                # 안전 분류기가 요청을 거절하면 서버에서 대체 모델로 자동 재시도
-                betas=["server-side-fallback-2026-07-01"],
-                fallbacks="default",
-                messages=[{"role": "user", "content": prompt}],
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+                config=types.GenerateContentConfig(system_instruction=self._system()),
             )
-        except anthropic.APIConnectionError as e:
-            log.warning("Claude API 연결 실패, 템플릿 사용: %s", e)
+            text = response.text or ""
+        except errors.APIError as e:
+            log.warning("Gemini API 오류(%s), 템플릿 사용: %s", e.code, e.message)
             return template_reply(review, self.store_cfg, self.max_length)
-        except anthropic.RateLimitError as e:
-            log.warning("Claude API 요청 한도 초과, 템플릿 사용: %s", e)
-            return template_reply(review, self.store_cfg, self.max_length)
-        except anthropic.APIStatusError as e:
-            log.warning("Claude API 오류(%s), 템플릿 사용: %s", e.status_code, e.message)
+        except Exception as e:  # 네트워크 오류 등
+            log.warning("Gemini 호출 실패, 템플릿 사용: %s", e)
             return template_reply(review, self.store_cfg, self.max_length)
 
-        if response.stop_reason == "refusal":
-            log.warning("Claude가 답글 작성을 거절해 템플릿을 사용합니다.")
-            return template_reply(review, self.store_cfg, self.max_length)
-        text = "".join(b.text for b in response.content if b.type == "text")
-        if not text.strip():
+        if not text.strip():  # 안전 필터 차단 등으로 빈 응답
+            log.warning("Gemini가 빈 답글을 돌려줘 템플릿을 사용합니다.")
             return template_reply(review, self.store_cfg, self.max_length)
         return _finalize(text, self.store_cfg.get("signature", ""), self.max_length)

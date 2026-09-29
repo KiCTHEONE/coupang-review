@@ -11,9 +11,9 @@ def test_template_reply_uses_signature_and_limit(monkeypatch):
 
 
 def test_generator_without_key_falls_back(monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
-    g = ReplyGenerator({"name": "가게"}, {"use_claude": True, "max_length": 300})
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    g = ReplyGenerator({"name": "가게"}, {"use_ai": True, "max_length": 300})
     assert g.client is None
     assert "죄송" in g.generate(Review(author="a", rating=1, text="별로"))
 

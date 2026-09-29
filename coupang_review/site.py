@@ -2,7 +2,7 @@
 
 두 가지 모드가 있다.
 - auto (기본): HTML 구조를 몰라도 동작한다. "사장님 댓글 등록" 같은 버튼 글자로 미답변 리뷰 카드를 찾고,
-  카드의 글자와 스크린샷을 Claude가 읽어 작성자·별점·메뉴·내용을 추출한다.
+  카드의 글자와 스크린샷을 AI가 읽어 작성자·별점·메뉴·내용을 추출한다.
 - selectors: config의 CSS 셀렉터로 직접 지정한다 (auto가 맞지 않을 때).
 """
 from __future__ import annotations
@@ -118,7 +118,7 @@ def card_key(card_text: str) -> str:
 
 
 def heuristic_read(card_text: str, reply_button_re: str) -> dict:
-    """Claude 없이 카드 글자만으로 대략 추출한다."""
+    """AI 없이 카드 글자만으로 대략 추출한다."""
     btn = re.compile(reply_button_re)
     lines = [ln.strip() for ln in card_text.splitlines() if ln.strip()]
     rating = None
@@ -212,7 +212,7 @@ class CoupangEatsStore:
         return self.page.locator(self.sel["review_item"]).all()
 
     def item_key(self, item: Locator) -> str | None:
-        """Claude 호출 전에 알 수 있는 리뷰 키 (auto 모드)."""
+        """AI 호출 전에 알 수 있는 리뷰 키 (auto 모드)."""
         if self.mode != "auto":
             return None
         return card_key(self._card_text(item))
@@ -251,7 +251,7 @@ class CoupangEatsStore:
                 try:
                     data = self.reader(text, item.screenshot())
                 except Exception as e:  # 읽기 실패 시 글자 기반 추출로 대체
-                    log.warning("Claude로 카드 읽기 실패, 글자 기반으로 추출: %s", e)
+                    log.warning("AI로 카드 읽기 실패, 글자 기반으로 추출: %s", e)
             data = data or heuristic_read(text, self.reply_button_re)
             if not data.get("is_review", True):
                 return None

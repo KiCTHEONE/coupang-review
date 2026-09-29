@@ -8,10 +8,9 @@ store:
 reply:
   min_rating_to_auto_reply: 3   # 1~2점 리뷰는 자동 등록하지 않고 건너뜀
   max_length: 300
-  use_claude: true              # false면 템플릿 답글
-  api_key: ""                   # 여기에 Claude API 키(sk-ant-...)를 붙여넣으세요. 비우면 ANTHROPIC_API_KEY 환경변수 사용
-  model: claude-opus-5-5
-  effort: low
+  use_ai: true                  # false면 템플릿 답글
+  api_key: ""                   # 여기에 Gemini API 키를 붙여넣으세요 (https://aistudio.google.com/apikey)
+  model: gemini-flash-latest    # 더 좋은 품질을 원하면 gemini-pro-latest
 
 run:
   dry_run: true                 # 처음엔 true로 답글 품질을 확인한 뒤 false 또는 --post
@@ -21,7 +20,7 @@ run:
   interval_minutes: 0           # 예: 60 → 1시간마다 반복 실행
   headless: true
 
-# 리뷰 찾기는 기본적으로 자동입니다 ('댓글 등록' 버튼 글자로 찾고, Claude가 카드를 읽음).
+# 리뷰 찾기는 기본적으로 자동입니다 ('댓글 등록' 버튼 글자로 찾고, Gemini가 카드를 읽음).
 # 버튼 글자가 다르면 아래를 바꾸세요.
 # site:
 #   reply_button_text: "^(사장님\\s*)?(댓글|답글)\\s*(등록|작성|달기|쓰기)"
