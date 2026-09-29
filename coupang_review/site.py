@@ -220,27 +220,76 @@ class CoupangEatsStore:
         periods = list(self.cfg.get("period_texts") or [])
         if not periods:
             return
-        chosen = self._click_text(periods)
+        chosen = self._click_text(periods) or self._select_option(periods)
         if not chosen:
-            # 기간 선택이 드롭다운에 숨어 있으면 현재 기간(예: '오늘')을 눌러 펼친 뒤 다시 찾는다.
-            opener = self.page.get_by_text(re.compile(self.cfg.get("period_opener_text", ""))).locator("visible=true")
-            if self.cfg.get("period_opener_text") and opener.count():
+            # 기간 선택이 드롭다운/달력에 숨어 있으면 현재 기간(예: '오늘', '2026.09.29 ~ 2026.09.29')을 눌러 펼친 뒤 다시 찾는다.
+            for opener in self._period_openers():
                 try:
-                    opener.first.click(timeout=2000)
-                    time.sleep(0.5)
-                    chosen = self._click_text(periods)
-                except PWTimeout:
-                    pass
+                    opener.click(timeout=2000)
+                except Exception:
+                    continue
+                time.sleep(0.7)
+                chosen = self._click_text(periods) or self._select_option(periods)
+                if chosen:
+                    break
+                self.page.keyboard.press("Escape")
         if not chosen:
             chosen = self._fill_date_inputs()
         if not chosen:
             log.warning("조회 기간을 바꾸지 못했습니다. 화면에 보이는 기본 기간으로 진행합니다.")
+            log.warning("화면 위쪽 버튼 글자: %s", " | ".join(self._visible_controls()))
             return
         time.sleep(0.5)
         self._click_text(self.cfg.get("period_apply_texts") or [])  # '조회' 같은 버튼이 있으면 누름
         self._settle()
         time.sleep(1)
         log.info("조회 기간: %s", chosen)
+
+    def _select_option(self, texts: list[str]) -> str | None:
+        """<select> 드롭다운에서 기간 항목을 고른다."""
+        selects = self.page.locator("select:visible")
+        for i in range(selects.count()):
+            options = [o.strip() for o in selects.nth(i).locator("option").all_inner_texts()]
+            for t in texts:
+                match = next((o for o in options if re.fullmatch(rf"(최근\s*)?{re.escape(t)}", o)), None)
+                if match:
+                    selects.nth(i).select_option(label=match)
+                    return t
+        return None
+
+    def _period_openers(self) -> list[Locator]:
+        """눌렀을 때 기간 선택창이 열릴 만한 요소들."""
+        found = []
+        pattern = self.cfg.get("period_opener_text")
+        if pattern:
+            loc = self.page.get_by_text(re.compile(pattern)).locator("visible=true")
+            found += [loc.nth(i) for i in range(min(loc.count(), 3))]
+        date_range = re.compile(r"\d{4}\s*[.\-/]\s*\d{1,2}\s*[.\-/]\s*\d{1,2}")
+        loc = self.page.get_by_text(date_range).locator("visible=true")
+        found += [loc.nth(i) for i in range(min(loc.count(), 2))]
+        inputs = self.page.locator("input:visible")
+        for i in range(min(inputs.count(), 20)):
+            if date_range.search(inputs.nth(i).input_value() or ""):
+                found.append(inputs.nth(i))
+                break
+        return found
+
+    def _visible_controls(self) -> list[str]:
+        """진단용: 화면 위쪽에 보이는 짧은 버튼/탭/입력칸 글자."""
+        return self.page.evaluate("""() => {
+          const out = [];
+          const vis = el => { const r = el.getBoundingClientRect(); return r.width && r.height && r.top < 700; };
+          document.querySelectorAll('button, a, [role=tab], [role=button], [role=option], label, li, select, input, span, div').forEach(el => {
+            if (!vis(el)) return;
+            let t = '';
+            if (el.tagName === 'INPUT') t = el.value || el.placeholder || '';
+            else if (el.tagName === 'SELECT') t = 'select[' + [...el.options].map(o => o.text.trim()).join('/') + ']';
+            else if (el.children.length === 0 || ['BUTTON', 'A', 'LABEL'].includes(el.tagName)) t = (el.innerText || '').trim();
+            t = t.replace(/\s+/g, ' ');
+            if (t && t.length <= 25 && !out.includes(t)) out.push(t);
+          });
+          return out.slice(0, 80);
+        }""")
 
     def _fill_date_inputs(self) -> str | None:
         """시작일/종료일 입력칸이 있으면 1년 전 ~ 오늘로 입력."""

@@ -1,0 +1,21 @@
+<!doctype html><html><body>
+<div id="v-select" style="display:none">
+  <select id="sel"><option>오늘</option><option>최근 1주일</option><option>최근 1개월</option><option>최근 6개월</option></select>
+</div>
+<div id="v-range" style="display:none">
+  <div class="css-range" id="range">2026.09.29 ~ 2026.09.29</div>
+  <div id="picker" style="display:none" role="dialog"><button>1개월</button><button>3개월</button><button>6개월</button><button id="apply">적용</button></div>
+</div>
+<div id="v-none" style="display:none"><button>필터</button><span>정렬: 최신순</span></div>
+<p id="result"></p>
+<script>
+const v = location.hash.slice(1);
+document.getElementById('v-' + v).style.display = 'block';
+document.getElementById('sel').onchange = e => document.getElementById('result').innerText = e.target.value;
+document.getElementById('range').onclick = () => document.getElementById('picker').style.display = 'block';
+document.querySelectorAll('#picker button').forEach(b => b.onclick = () => {
+  if (b.id === 'apply') document.getElementById('picker').style.display = 'none';
+  else document.getElementById('result').innerText = b.innerText;
+});
+</script>
+</body></html>

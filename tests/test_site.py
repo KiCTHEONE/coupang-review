@@ -78,3 +78,21 @@ def test_period_and_load_more(open_store):
     assert store.load_more()
     assert len(store.review_items()) == 4
     assert not store.load_more() or len(store.review_items()) == 4
+
+
+@pytest.mark.parametrize("variant, expected", [("select", "최근 6개월"), ("range", "6개월")])
+def test_period_variants(open_store, variant, expected):
+    store = open_store("fake_period_variants.html", "auto")
+    store.page.goto((FIXTURES / "fake_period_variants.html").as_uri() + "#" + variant)
+    store.page.reload()
+    store.apply_period()
+    assert store.page.locator("#result").inner_text() == expected
+
+
+def test_period_not_found_logs_controls(open_store, caplog):
+    store = open_store("fake_period_variants.html", "auto")
+    store.page.goto((FIXTURES / "fake_period_variants.html").as_uri() + "#none")
+    store.page.reload()
+    with caplog.at_level("WARNING"):
+        store.apply_period()
+    assert "필터" in caplog.text and "정렬: 최신순" in caplog.text
