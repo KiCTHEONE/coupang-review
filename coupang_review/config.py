@@ -27,9 +27,17 @@ DEFAULTS: dict[str, Any] = {
         "max_replies_per_run": 20,
         "delay_between_replies_sec": 3,
         "interval_minutes": 0,  # 0이면 1회 실행, 그 외엔 주기 반복
-        "headless": True,
+        "headless": False,  # 쿠팡이츠가 headless 브라우저를 차단할 수 있어 기본은 창을 띄움
         "state_file": "state.json",
-        "profile_dir": ".browser-profile",
+        # real: 컴퓨터에 설치된 크롬/엣지를 띄워 연결 (쿠팡이츠 로그인 차단 회피, 권장)
+        # bundled: Playwright 내장 브라우저 사용
+        "browser_mode": "real",
+        "browser_executable": "",  # 크롬 경로를 직접 지정할 때
+        "browser_args": [],  # 브라우저에 추가로 넘길 옵션
+        "cdp_port": 9222,
+        "chrome_profile_dir": ".chrome-profile",
+        "session_file": "session.json",
+        "profile_dir": ".browser-profile",  # bundled 모드용
     },
     "site": {
         # auto: HTML 구조를 몰라도 '댓글 등록' 버튼 글자로 리뷰를 찾고 Gemini가 카드를 읽음 (권장)

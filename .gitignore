@@ -6,3 +6,5 @@ config.yaml
 state.json
 debug/
 .pytest_cache/
+.chrome-profile/
+session.json

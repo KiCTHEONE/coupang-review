@@ -9,9 +9,11 @@ from __future__ import annotations
 import argparse
 import logging
 import time
+from contextlib import ExitStack
 
 from playwright.sync_api import sync_playwright
 
+from .browser import open_context, save_session, start_browser
 from .config import load_config
 from .generator import ReplyGenerator
 from .site import CoupangEatsStore
@@ -20,29 +22,24 @@ from .state import ReplyState
 log = logging.getLogger("coupang_review")
 
 
-def _launch(p, cfg: dict, headless: bool):
-    return p.chromium.launch_persistent_context(
-        cfg["run"]["profile_dir"],
-        headless=headless,
-        executable_path=cfg["run"].get("browser_executable") or None,
-        locale="ko-KR",
-        viewport={"width": 1400, "height": 1000},
-    )
-
-
 def cmd_login(cfg: dict) -> None:
+    # 로그인하는 동안에는 자동화 연결 없이 평범한 브라우저로 띄운다 (쿠팡이츠 403 차단 회피).
+    proc = start_browser(cfg, cfg["site"]["login_url"])
+    print("\n열린 브라우저 창에서 쿠팡이츠 사장님 사이트에 로그인하세요 (추가 인증 포함).")
+    print("리뷰 관리 화면이 보이면 이 창으로 돌아와 Enter를 누르세요.")
+    input("> ")
     with sync_playwright() as p:
-        ctx = _launch(p, cfg, headless=False)
-        page = ctx.pages[0] if ctx.pages else ctx.new_page()
-        page.goto(cfg["site"]["login_url"])
-        input("브라우저에서 로그인(추가 인증 포함)을 마친 뒤 Enter를 누르세요... ")
-        ctx.close()
-    print("로그인 세션이 저장되었습니다:", cfg["run"]["profile_dir"])
+        browser = p.chromium.connect_over_cdp(f"http://127.0.0.1:{cfg['run']['cdp_port']}")
+        save_session(browser.contexts[0], cfg)
+        browser.close()
+    if proc:
+        proc.terminate()
+    print("로그인 정보를 저장했습니다:", cfg["run"]["session_file"])
 
 
 def cmd_inspect(cfg: dict) -> None:
-    with sync_playwright() as p:
-        ctx = _launch(p, cfg, headless=cfg["run"]["headless"])
+    with sync_playwright() as p, ExitStack() as stack:
+        ctx = stack.enter_context(open_context(p, cfg, headless=cfg["run"]["headless"]))
         store = CoupangEatsStore(ctx, cfg["site"], reader=ReplyGenerator(cfg["store"], cfg["reply"]).read_card)
         store.ensure_login()
         store.open_reviews()
@@ -54,7 +51,6 @@ def cmd_inspect(cfg: dict) -> None:
             if r is None:
                 continue
             print(f"- [{r.key}] {r.author} ★{r.rating} 답글={'O' if r.has_reply else 'X'} | {r.menu} | {r.text[:60]!r}")
-        ctx.close()
 
 
 def run_once(cfg: dict, dry_run: bool) -> int:
@@ -65,8 +61,7 @@ def run_once(cfg: dict, dry_run: bool) -> int:
     posted = 0
     seen: set[str] = set()
 
-    with sync_playwright() as p:
-        ctx = _launch(p, cfg, headless=run_cfg["headless"])
+    with sync_playwright() as p, open_context(p, cfg, headless=run_cfg["headless"]) as ctx:
         store = CoupangEatsStore(ctx, cfg["site"], reader=generator.read_card)
         store.ensure_login()
         store.open_reviews()
@@ -117,7 +112,7 @@ def run_once(cfg: dict, dry_run: bool) -> int:
 
             if posted >= int(run_cfg["max_replies_per_run"]) or not store.next_page():
                 break
-        ctx.close()
+        save_session(ctx, cfg)  # 갱신된 로그인 쿠키 저장
     return posted
 
 

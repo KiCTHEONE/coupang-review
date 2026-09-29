@@ -18,7 +18,7 @@ run:
   max_replies_per_run: 20
   delay_between_replies_sec: 3
   interval_minutes: 0           # 예: 60 → 1시간마다 반복 실행
-  headless: true
+  headless: false               # 쿠팡이츠 차단을 피하려면 false 권장
 
 # 리뷰 찾기는 기본적으로 자동입니다 ('댓글 등록' 버튼 글자로 찾고, Gemini가 카드를 읽음).
 # 버튼 글자가 다르면 아래를 바꾸세요.
