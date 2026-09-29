@@ -20,6 +20,7 @@ DEFAULTS: dict[str, Any] = {
         "use_ai": True,
         "api_key": "",  # Gemini API 키 (비우면 GEMINI_API_KEY 환경변수)
         "model": "gemini-flash-latest",
+        "fallback_models": ["gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.5-flash-lite"],  # 붐비거나 한도 끝나면 차례로 사용
         "min_interval_sec": 7,  # Gemini 호출 사이 최소 간격(초)
     },
     "run": {

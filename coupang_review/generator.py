@@ -98,6 +98,10 @@ class ReplyGenerator:
         self.reply_cfg = reply_cfg
         self.max_length = int(reply_cfg.get("max_length", 300))
         self.model = reply_cfg.get("model", "gemini-flash-latest")
+        # 기본 모델이 붐비거나 한도가 끝나면 차례로 바꿔 쓸 예비 모델
+        fallbacks = reply_cfg.get("fallback_models", ["gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.5-flash-lite"])
+        self.models = list(dict.fromkeys([self.model, *fallbacks]))
+        self._model_idx = 0
         self.client = None
         self._last_call = 0.0
         api_key = (reply_cfg.get("api_key") or "").strip() or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
@@ -106,35 +110,60 @@ class ReplyGenerator:
         elif reply_cfg.get("use_ai", True):
             log.warning("Gemini API 키가 없어 템플릿 답글을 사용합니다. (config.yaml 의 reply.api_key)")
 
+    def _switch_model(self, reason: str) -> bool:
+        """다음 예비 모델로 바꾼다. 더 없으면 False."""
+        if self._model_idx + 1 >= len(self.models):
+            return False
+        self._model_idx += 1
+        self.model = self.models[self._model_idx]
+        log.warning("%s → 다른 모델(%s)로 바꿔서 계속합니다", reason, self.model)
+        return True
+
     def _call(self, **kwargs):
-        """Gemini 호출. 분당 한도를 넘지 않게 간격을 두고, 429/5xx면 기다렸다가 다시 시도."""
+        """Gemini 호출. 분당 한도를 넘지 않게 간격을 두고, 429/5xx면 기다렸다가 다시 시도.
+        한 모델이 계속 붐비거나(503) 한도가 끝나면 예비 모델로 바꾼다."""
         gap = float(self.reply_cfg.get("min_interval_sec", 7))
         wait = gap - (time.monotonic() - self._last_call)
         if wait > 0:
             time.sleep(wait)
-        backoff = [15, 30, 60, 60, 90, 120]
-        for attempt in range(len(backoff) + 1):
+        backoff = [10, 20, 40, 60, 90, 120]
+        attempt, busy_streak = 0, 0
+        while True:
             self._last_call = time.monotonic()
             try:
                 return self.client.models.generate_content(model=self.model, **kwargs)
             except errors.APIError as e:
                 msg = str(e)
-                if e.code == 429 and re.search(r"PerDay|per.day|daily", msg, re.I):
-                    raise QuotaExhausted("오늘 Gemini 무료 사용 한도를 다 썼습니다.") from e
-                if not (e.code == 429 or (e.code or 0) >= 500):
-                    raise AIUnavailable(f"Gemini 오류({e.code}): {e.message}") from e
-                if attempt == len(backoff):
-                    if e.code == 429:
+                code = e.code or 0
+                if code == 404 or (code == 400 and "model" in msg.lower()):
+                    if self._switch_model(f"모델 {self.model}을(를) 쓸 수 없음"):
+                        continue
+                    raise AIUnavailable(f"Gemini 오류({code}): {e.message}") from e
+                if code == 429 and re.search(r"PerDay|per.day|daily", msg, re.I):
+                    if self._switch_model(f"{self.model} 오늘 무료 한도 소진"):
+                        attempt, busy_streak = 0, 0
+                        continue
+                    raise QuotaExhausted("오늘 Gemini 무료 사용 한도를 모든 모델에서 다 썼습니다.") from e
+                if not (code == 429 or code >= 500):
+                    raise AIUnavailable(f"Gemini 오류({code}): {e.message}") from e
+                busy_streak = busy_streak + 1 if code >= 500 else 0
+                if busy_streak >= 2 and self._switch_model(f"{self.model} 서버 혼잡({code})이 계속됨"):
+                    attempt, busy_streak = 0, 0
+                    continue
+                if attempt >= len(backoff):
+                    if code == 429:
                         raise QuotaExhausted("Gemini 사용 한도 초과가 계속됩니다.") from e
-                    raise AIUnavailable(f"Gemini 서버 오류가 계속됩니다({e.code}).") from e
+                    raise AIUnavailable(f"Gemini 서버 오류가 계속됩니다({code}).") from e
                 m = re.search(r"retry(?:Delay)?[\"']?\s*(?:in|:)\s*[\"']?([\d.]+)\s*s", msg, re.I)
                 delay = float(m.group(1)) + 2 if m else backoff[attempt]
-                log.info("Gemini %s, %d초 후 다시 시도합니다", "한도 초과(429)" if e.code == 429 else f"서버 혼잡({e.code})", delay)
+                log.info("Gemini %s, %d초 후 다시 시도합니다", "한도 초과(429)" if code == 429 else f"서버 혼잡({code})", delay)
                 time.sleep(delay)
+                attempt += 1
             except Exception as e:  # 네트워크 오류 등
-                if attempt == len(backoff):
+                if attempt >= len(backoff):
                     raise AIUnavailable(f"Gemini 호출 실패: {e}") from e
                 time.sleep(backoff[attempt])
+                attempt += 1
 
     def read_card(self, card_text: str, png: bytes) -> dict | None:
         """리뷰 카드 스크린샷+글자로 리뷰 정보 추출과 답글 작성을 한 번에 한다. AI를 못 쓰면 None."""

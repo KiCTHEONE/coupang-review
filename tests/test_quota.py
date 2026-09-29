@@ -45,14 +45,27 @@ def test_retry_uses_server_delay(make):
     assert sleeps == [14.5]
 
 
-def test_daily_quota_stops(make):
-    g, _ = make([_err(429, "Quota exceeded for metric: generate_content_free_tier_requests, limit: GenerateRequestsPerDayPerProjectPerModel-FreeTier")])
+DAILY = "Quota exceeded for metric: generate_content_free_tier_requests, limit: GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+
+
+def test_daily_quota_switches_model_then_stops(make):
+    g, _ = make([_err(429, DAILY), "고마워요!"])
+    assert g.generate(Review(author="a", rating=5, text="맛있어요")) == "고마워요!"
+    assert g.model == "gemini-2.5-flash"
+
+    g, _ = make([_err(429, DAILY)] * 4)
     with pytest.raises(QuotaExhausted):
         g.generate(Review(author="a", rating=5, text="맛있어요"))
 
 
-def test_persistent_503_skips_not_template(make):
-    g, _ = make([_err(503, "overloaded")] * 7)
+def test_503_twice_switches_model(make):
+    g, sleeps = make([_err(503, "overloaded"), _err(503, "overloaded"), "고마워요!"])
+    assert g.generate(Review(author="a", rating=5, text="맛있어요")) == "고마워요!"
+    assert g.model == "gemini-2.5-flash" and sleeps == [10]
+
+
+def test_persistent_503_on_all_models_skips_not_template(make):
+    g, _ = make([_err(503, "overloaded")] * 40)
     with pytest.raises(AIUnavailable):
         g.generate(Review(author="a", rating=5, text="맛있어요"))
 

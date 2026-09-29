@@ -276,7 +276,7 @@ class CoupangEatsStore:
 
     def _visible_controls(self) -> list[str]:
         """진단용: 화면 위쪽에 보이는 짧은 버튼/탭/입력칸 글자."""
-        return self.page.evaluate("""() => {
+        return self.page.evaluate(r"""() => {
           const out = [];
           const vis = el => { const r = el.getBoundingClientRect(); return r.width && r.height && r.top < 700; };
           document.querySelectorAll('button, a, [role=tab], [role=button], [role=option], label, li, select, input, span, div').forEach(el => {
